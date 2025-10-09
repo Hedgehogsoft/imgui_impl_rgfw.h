@@ -72,8 +72,8 @@ typedef struct {int x; int y;} impoint;
 IMGUI_IMPL_API void     ImGui_ImplRgfw_WindowFocusCallback(RGFW_window* window, u8 inFocus);        // Since 1.84
 IMGUI_IMPL_API void     ImGui_ImplRgfw_CursorEnterCallback(RGFW_window* window, i32 x, i32 y, u8 status);        // Since 1.84
 IMGUI_IMPL_API void     ImGui_ImplRgfw_CursorPosCallback(RGFW_window* window, i32 x, i32 y, float vecX, float vecY);   // Since 1.87
-IMGUI_IMPL_API void     ImGui_ImplRgfw_MouseButtonCallback(RGFW_window* window, u8 button, double scroll, u8 pressed);
-IMGUI_IMPL_API void     ImGui_ImplRgfw_ScrollCallback(RGFW_window* window, double xoffset, double yoffset);
+IMGUI_IMPL_API void     ImGui_ImplRgfw_MouseButtonCallback(RGFW_window* window, u8 button, u8 pressed);
+IMGUI_IMPL_API void     ImGui_ImplRgfw_MouseScrollCallback(RGFW_window* window, float xoffset, float yoffset);
 IMGUI_IMPL_API void     ImGui_ImplRgfw_KeyCallback(RGFW_window* window, u8 keycode, u8 keyChar, u8 modState, u8 repeat, u8 pressed);
 IMGUI_IMPL_API void     ImGui_ImplRgfw_CharCallback(RGFW_window* window, unsigned int c);
 #endif /* ifndef RGFW_IMGUI_H */
@@ -106,6 +106,7 @@ struct ImGui_ImplRgfw_Data
     RGFW_mousePosfunc        PrevUserCallbackCursorPos;
     RGFW_mouseNotifyfunc      PrevUserCallbackCursorEnter;
     RGFW_mouseButtonfunc      PrevUserCallbackMousebutton;
+    RGFW_mouseScrollfunc      PrevUserCallbackMouseScroll;
     RGFW_keyfunc              PrevUserCallbackKey;
 
     ImGui_ImplRgfw_Data()   { memset(static_cast<void*>(this), 0, sizeof(*this)); }
@@ -227,18 +228,14 @@ static bool ImGui_ImplRgfw_ShouldChainCallback(RGFW_window* window)
     return bd->CallbacksChainForAllWindows ? true : (window == bd->Window);
 }
 
-void ImGui_ImplRgfw_MouseButtonCallback(RGFW_window* window, u8 button, double scroll, u8 pressed)
+void ImGui_ImplRgfw_MouseButtonCallback(RGFW_window* window, u8 button, u8 pressed)
 {
-    if (button >= RGFW_mouseScrollUp) {
-        return ImGui_ImplRgfw_ScrollCallback(window, 0, scroll);
-    }
-
     if (button == RGFW_mouseMiddle) button = RGFW_mouseRight;
     else if (button == RGFW_mouseRight) button = RGFW_mouseMiddle;
 
     ImGui_ImplRgfw_Data* bd = ImGui_ImplRgfw_GetBackendData();
     if (bd->PrevUserCallbackMousebutton != nullptr && ImGui_ImplRgfw_ShouldChainCallback(window))
-        bd->PrevUserCallbackMousebutton(window, button, scroll, pressed);
+        bd->PrevUserCallbackMousebutton(window, button, pressed);
 
     ImGuiIO& io = ImGui::GetIO();
     if (button < ImGuiMouseButton_COUNT) {
@@ -246,14 +243,14 @@ void ImGui_ImplRgfw_MouseButtonCallback(RGFW_window* window, u8 button, double s
     }
 }
 
-void ImGui_ImplRgfw_ScrollCallback(RGFW_window* window, double xoffset, double yoffset)
+void ImGui_ImplRgfw_MouseScrollCallback(RGFW_window* window, float xoffset, float yoffset)
 {
     ImGui_ImplRgfw_Data* bd = ImGui_ImplRgfw_GetBackendData();
-    if (bd->PrevUserCallbackMousebutton != nullptr && ImGui_ImplRgfw_ShouldChainCallback(window))
-        bd->PrevUserCallbackMousebutton(window, RGFW_mouseScrollUp + (yoffset > 0), yoffset, RGFW_TRUE);
+    if (bd->PrevUserCallbackMouseScroll != nullptr && ImGui_ImplRgfw_ShouldChainCallback(window))
+        bd->PrevUserCallbackMouseScroll(window, xoffset, yoffset);
 
     ImGuiIO& io = ImGui::GetIO();
-    io.AddMouseWheelEvent(static_cast<float>(xoffset), static_cast<float>(yoffset));
+    io.AddMouseWheelEvent(xoffset, yoffset);
 }
 
 void ImGui_ImplRgfw_KeyCallback(RGFW_window* window, u8 key, u8 keyChar, u8 modState, RGFW_bool repeat, RGFW_bool pressed)
@@ -343,6 +340,7 @@ void ImGui_ImplRgfw_InstallCallbacks(RGFW_window* window)
     bd->PrevUserCallbackCursorEnter = RGFW_setMouseNotifyCallback(ImGui_ImplRgfw_CursorEnterCallback);
     bd->PrevUserCallbackCursorPos = RGFW_setMousePosCallback(ImGui_ImplRgfw_CursorPosCallback);
     bd->PrevUserCallbackMousebutton = RGFW_setMouseButtonCallback(ImGui_ImplRgfw_MouseButtonCallback);
+    bd->PrevUserCallbackMouseScroll = RGFW_setMouseScrollCallback(ImGui_ImplRgfw_MouseScrollCallback);
     bd->PrevUserCallbackKey = RGFW_setKeyCallback(ImGui_ImplRgfw_KeyCallback);
     bd->InstalledCallbacks = true;
 }
