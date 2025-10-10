@@ -1,6 +1,7 @@
 #include <cstdio>
 
 #define RGFW_DEBUG
+#define RGFW_OPENGL
 #define RGFW_IMPLEMENTATION
 #define RGFW_IMGUI_IMPLEMENTATION
 #include "../imgui_impl_rgfw.h"
@@ -20,8 +21,7 @@ void imgui_render(void);
 void imgui_shutdown(void);
 
 int main() {
-    RGFW_window* win = RGFW_createWindow("imgui", RGFW_RECT(0, 0, 700, 600), RGFW_windowCenter);
-    RGFW_window_makeCurrent(win);
+    RGFW_window* win = RGFW_createWindow("imgui", 0, 0, 700, 600, RGFW_windowCenter | RGFW_windowOpenGL);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -41,8 +41,8 @@ int main() {
     io.DisplayFramebufferScale = ImVec2(monitor.scaleX, monitor.scaleY);
  
     while (RGFW_window_shouldClose(win) == RGFW_FALSE) {
-        RGFW_window_checkEvents(win, RGFW_eventNoWait);
-        io.DisplaySize = ImVec2(win->r.w, win->r.h);
+        RGFW_pollEvents();
+        io.DisplaySize = ImVec2(win->w, win->h);
 
         imgui_newFrame();
 
@@ -66,12 +66,12 @@ int main() {
             ImGui::Text("counter = %d", counter);
         ImGui::End();
 
-        glViewport(0, 0, win->r.w * monitor.pixelRatio, win->r.h * monitor.pixelRatio);
+        glViewport(0, 0, win->w * monitor.pixelRatio, win->h * monitor.pixelRatio);
         glClear(GL_COLOR_BUFFER_BIT);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
 
         imgui_render();
-        RGFW_window_swapBuffers(win);
+        RGFW_window_swapBuffers_OpenGL(win);
     }
 
     imgui_shutdown();
