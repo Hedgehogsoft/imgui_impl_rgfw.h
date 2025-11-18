@@ -120,17 +120,17 @@ static ImGui_ImplRgfw_Data* ImGui_ImplRgfw_GetBackendData()
 char* clipboard_str = nullptr;
 
 // Functions
-static const char* ImGui_ImplRgfw_GetClipboardText(void* user_data)
+static const char* ImGui_ImplRgfw_GetClipboardText(ImGuiContext* ctx)
 {
-    RGFW_UNUSED(user_data);
+    RGFW_UNUSED(ctx);
 
     size_t size;
     return RGFW_readClipboard(&size);
 }
 
-static void ImGui_ImplRgfw_SetClipboardText(void* user_data, const char* text)
+static void ImGui_ImplRgfw_SetClipboardText(ImGuiContext* ctx, const char* text)
 {
-    RGFW_UNUSED(user_data);
+    RGFW_UNUSED(ctx);
     RGFW_UNUSED(text);
     RGFW_writeClipboard(text, static_cast<u32>(strlen(text)));
 }
@@ -434,9 +434,10 @@ static bool ImGui_ImplRgfw_Init(RGFW_window* window, bool install_callbacks, Rgf
     bd->Window = window;
     bd->Time = 0.0;
 
-    io.SetClipboardTextFn = ImGui_ImplRgfw_SetClipboardText;
-    io.GetClipboardTextFn = ImGui_ImplRgfw_GetClipboardText;
-    io.ClipboardUserData = bd->Window;
+    ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+    platform_io.Platform_SetClipboardTextFn = ImGui_ImplRgfw_SetClipboardText;
+    platform_io.Platform_GetClipboardTextFn = ImGui_ImplRgfw_GetClipboardText;
+    platform_io.Platform_ClipboardUserData = bd->Window;
 #ifdef __EMSCRIPTEN__
       // io.PlatformOpenInShellFn = [](ImGuiContext*, const char* url) { ImGui_ImplRgfw_EmscriptenOpenURL(url); return true; };
 #endif
