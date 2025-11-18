@@ -44,7 +44,6 @@
 #define RGFW_IMGUI_H
 
 #include <stdbool.h>
-#include <chrono>
 
 typedef struct RGFW_window RGFW_window;
 
@@ -79,6 +78,8 @@ IMGUI_IMPL_API void     ImGui_ImplRgfw_CharCallback(RGFW_window* window, unsigne
 #endif /* ifndef RGFW_IMGUI_H */
 
 #ifdef RGFW_IMGUI_IMPLEMENTATION
+
+#include <chrono>
 
 #define RGFWDEF
 #include "RGFW.h"
