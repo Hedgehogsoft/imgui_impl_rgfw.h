@@ -79,12 +79,40 @@ IMGUI_IMPL_API void     ImGui_ImplRgfw_CharCallback(const RGFW_event* e);
 
 #ifdef RGFW_IMGUI_IMPLEMENTATION
 
-#include <chrono>
-
 #ifndef RGFWDEF
     #define RGFWDEF
 #endif
+#ifndef RGFW_NATIVE
+	#define RGFW_NATIVE
+#endif
 #include "RGFW.h"
+
+#ifndef RGFW_IMPL_GET_TIME
+  #if defined(RGFW_WINDOWS)
+  static double ImGui_ImplRgfw_GetTime() {
+      LARGE_INTEGER frequency, counter;
+      QueryPerformanceFrequency(&frequency);
+      QueryPerformanceCounter(&counter);
+      return (double)counter.QuadPart / (double)frequency.QuadPart;
+  };
+  #elif defined(RGFW_UNIX)
+  static double ImGui_ImplRgfw_GetTime() {
+      struct timespec ts;
+      clock_gettime(CLOCK_MONOTONIC, &ts);
+      return (double)ts.tv_sec + ((double)ts.tv_nsec / 1000000000.0);
+  };
+  #endif
+#endif
+
+#ifndef RGFW_IMPL_GET_TIME
+  #if defined(RGFW_WINDOWS) || defined(RGFW_UNIX)
+    #define RGFW_IMPL_GET_TIME() ImGui_ImplRgfw_GetTime()
+  #endif
+#endif
+
+#if !defined(RGFW_IMPL_GET_TIME)
+  #error "RGFW_IMPL_GET_TIME must be defined."
+#endif
 
 // RGFW data
 enum RgfwClientApi
@@ -586,12 +614,10 @@ void ImGui_ImplRgfw_NewFrame()
     io.DisplaySize = ImVec2(static_cast<float>(bd->Window->w), static_cast<float>(bd->Window->h));
 
     // Setup time step
-    using namespace std::chrono;
-    double current_time = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count() / 1000.0f;
-    if(current_time <= bd->Time) {
-        current_time = bd->Time + 0.000001;
-    }
-    io.DeltaTime = bd->Time == 0.0 ? static_cast<float>(1.0f / 60.0f) : static_cast<float>(current_time - bd->Time);
+    double current_time = RGFW_IMPL_GET_TIME();
+    if (current_time <= bd->Time)
+       	current_time = bd->Time + 0.000001;
+    io.DeltaTime = bd->Time > 0.0 ? static_cast<float>(current_time - bd->Time) : static_cast<float>(1.0f / 60.0f);
     bd->Time = current_time;
 
     ImGui_ImplRgfw_UpdateMouseData();
