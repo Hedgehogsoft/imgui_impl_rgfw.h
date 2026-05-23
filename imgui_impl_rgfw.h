@@ -243,8 +243,11 @@ static bool ImGui_ImplRgfw_ShouldChainCallback(RGFW_window* window) {
 void ImGui_ImplRgfw_UberCallback(const RGFW_event* e) {
     ImGui_ImplRgfw_Data* bd = ImGui_ImplRgfw_GetBackendData();
     IM_ASSERT(bd != nullptr && "Context or backend not initialized! Did you call ImGui_ImplRgfw_InitForXXX()?");
-    ImGuiIO& io = ImGui::GetIO();
+    if (bd->PrevCallbacks.arr[e->type] != nullptr && ImGui_ImplRgfw_ShouldChainCallback(e->common.win)) {
+        bd->PrevCallbacks.arr[e->type](e);
+    }
 
+    ImGuiIO& io = ImGui::GetIO();
     switch (e->type) {
         case RGFW_windowFocusIn:
         case RGFW_windowFocusOut: {
@@ -311,12 +314,7 @@ void ImGui_ImplRgfw_UberCallback(const RGFW_event* e) {
             io.AddInputCharacter(c);
             break;
         }
-        default: {
-            if (bd->PrevCallbacks.arr[e->type] != nullptr && ImGui_ImplRgfw_ShouldChainCallback(e->common.win)) {
-                bd->PrevCallbacks.arr[e->type](e);
-            }
-            break;
-        }
+        default: break;
     }
 }
 
