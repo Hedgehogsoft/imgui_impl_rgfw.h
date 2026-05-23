@@ -1,100 +1,142 @@
-#include <cstdio>
+#include "imgui_unity.h"
+#include "imgui_unity.cpp"
 
-#define RGFW_DEBUG
+#define RGFW_ASSERT IM_ASSERT
 #define RGFW_OPENGL
+
+/*
+    alternative: imgui_impl_rgfw.h includes RGFW internally
+    if you don't need to include RGFW.h explicity here, you can condense this block into:
+    #define RGFW_IMPLEMENTATION
+    #define RGFW_IMGUI_IMPLEMENTATION
+    #include "../imgui_impl_rgfw.h"
+*/
 #define RGFW_IMPLEMENTATION
+#include "RGFW.h"
+#undef RGFW_IMPLEMENTATION /* undef so the backend won't implement it again */
+
 #define RGFW_IMGUI_IMPLEMENTATION
 #include "../imgui_impl_rgfw.h"
 
-/* I'm using opengl 2 here because it requires less setup and I'm lazy */
-#include "imgui_impl_opengl2.h"
-
 #ifdef __APPLE__
-#include <OpenGL/gl.h>
+    #include <OpenGL/gl.h>
 #else
-#include <GL/gl.h>
+    #include <GL/gl.h>
 #endif
 
-/* handle these functions across all apis */
-void imgui_newFrame(void);
-void imgui_render(void);
-void imgui_shutdown(void);
+float windowContentScale(RGFW_window* window) {
+    RGFW_monitor* mon = RGFW_window_getMonitor(window);
+    float context_scale_x, context_scale_y;
+    RGFW_monitor_getScale(mon, &context_scale_x, &context_scale_y);
+    return context_scale_x < context_scale_y ? context_scale_y : context_scale_x;
+}
 
 int main() {
-    RGFW_window* win = RGFW_createWindow("imgui", 0, 0, 700, 600, RGFW_windowCenter | RGFW_windowOpenGL);
+    RGFW_glHints* hints = RGFW_getGlobalHints_OpenGL();
+    hints->major = 3;
+    hints->minor = 3;
+
+    RGFW_windowFlags window_flags = RGFW_windowCenter | RGFW_windowScaleToMonitor | RGFW_windowOpenGL;
+    RGFW_window* window = RGFW_createWindow("rgfw-imgui", 0, 0, 800, 600, window_flags);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.DeltaTime = 1.0f / 60.0f;
-    // Build atlas
-    unsigned char* tex_pixels = nullptr;
-    int tex_w, tex_h;
-    io.Fonts->GetTexDataAsRGBA32(&tex_pixels, &tex_w, &tex_h);
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; /* Enable Keyboard Controls */
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  /* Enable Gamepad Controls */
+#ifdef RGFW_IMGUI_DOCKING_EXAMPLE
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     /* Enable Docking */
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   /* Enable Multi-Viewport / Platform Windows */
+#endif
 
-    ImGui_ImplRgfw_InitForOpenGL(win, true);
-    ImGui_ImplOpenGL2_Init();
+    /* Setup Dear ImGui style */
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
 
+    /* Setup Platform/Renderer backends */
+    ImGui_ImplRgfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init();
+
+    bool show_demo_window = true;
+    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    RGFW_monitor *monitor = RGFW_window_getMonitor(win);
-    io.DisplayFramebufferScale = ImVec2(monitor->scaleX, monitor->scaleY);
-
-    while (RGFW_window_shouldClose(win) == RGFW_FALSE) {
+    while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         RGFW_pollEvents();
-        io.DisplaySize = ImVec2(win->w, win->h);
 
-        imgui_newFrame();
+        /* Start the Dear ImGui Frame */
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplRgfw_NewFrame();
+        ImGui::NewFrame();
 
-        static float f = 0.0f;
-        static int counter = 0;
+        /* Adjust ImGui UI for HiDPI screens */
+        {
+            float old_scale = io.FontGlobalScale;
+            float content_scale = windowContentScale(window);
+            io.FontGlobalScale = content_scale;
+            ImGui::GetStyle().ScaleAllSizes(content_scale / old_scale);
+        }
 
-        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+        /* 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!). */
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
 
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+        /* 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window. */
+        {
+            static float f = 0.0f;
+            static int counter = 0;
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+            ImGui::Begin("Hello, world!");                              /* Create a window called "Hello, world!" and append into it */
+                ImGui::Text("This is some useful text.");               /* Display some text (you can use a format strings too) */
+                ImGui::Checkbox("Demo Window", &show_demo_window);      /* Edit bools storing our window open/close state */
+                ImGui::Checkbox("Another Window", &show_another_window);
 
-            char buffer[200] = {0};
-            ImGui::InputText("label", buffer, 200);
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+                ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            /* Edit 1 float using a slider from 0.0f to 1.0f */
+                ImGui::ColorEdit3("clear color", (float*)&clear_color); /* Edit 3 floats representing a color */
 
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-        ImGui::End();
+                if (ImGui::Button("Button"))                            /* Buttons return true when clicked (most widgets return true when edited/activated) */
+                    counter++;
+                ImGui::SameLine();
+                ImGui::Text("counter = %d", counter);
 
-        glViewport(0, 0, win->w * monitor.pixelRatio, win->h * monitor.pixelRatio);
+                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::End();
+        }
+
+        /* 3. Show another simple window. */
+        if (show_another_window) {
+            ImGui::Begin("Another Window", &show_another_window); /* Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked) */
+                ImGui::Text("Hello from another window!");
+                if (ImGui::Button("Close Me"))
+                    show_another_window = false;
+            ImGui::End();
+        }
+
+        /* Rendering */
+        ImGui::Render();
+        i32 pixel_width, pixel_height;
+        RGFW_window_getSizeInPixels(window, &pixel_width, &pixel_height);
+        glViewport(0, 0, pixel_width, pixel_height);
         glClear(GL_COLOR_BUFFER_BIT);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        imgui_render();
-        RGFW_window_swapBuffers_OpenGL(win);
+#ifdef RGFW_IMGUI_DOCKING_EXAMPLE
+        /* Update and render additional Platform Windows */
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            RGFW_window_makeCurrentWindow_OpenGL(window);
+        }
+#endif
+
+        RGFW_window_swapBuffers_OpenGL(window);
     }
 
-    imgui_shutdown();
-    RGFW_window_close(win);
-    return 0;
-}
-
-void imgui_newFrame() {
-    ImGui::NewFrame();
-    ImGui_ImplRgfw_NewFrame();
-    ImGui_ImplOpenGL2_NewFrame();
-}
-
-void imgui_render(void) {
-    ImGui::Render();
-
-    ImDrawData* draw_data = ImGui::GetDrawData();
-
-    ImGui_ImplOpenGL2_RenderDrawData(draw_data);
-}
-
-void imgui_shutdown(void) {
-    ImGui_ImplOpenGL2_Shutdown();
+    /* Cleanup */
+    ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplRgfw_Shutdown();
     ImGui::DestroyContext();
+    RGFW_window_close(window);
+    return 0;
 }
