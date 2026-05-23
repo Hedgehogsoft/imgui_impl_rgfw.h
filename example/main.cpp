@@ -24,13 +24,6 @@
     #include <GL/gl.h>
 #endif
 
-float windowContentScale(RGFW_window* window) {
-    RGFW_monitor* mon = RGFW_window_getMonitor(window);
-    float context_scale_x, context_scale_y;
-    RGFW_monitor_getScale(mon, &context_scale_x, &context_scale_y);
-    return context_scale_x < context_scale_y ? context_scale_y : context_scale_x;
-}
-
 int main() {
     RGFW_glHints* hints = RGFW_getGlobalHints_OpenGL();
     hints->major = 3;
@@ -72,7 +65,7 @@ int main() {
         /* Adjust ImGui UI for HiDPI screens */
         {
             float old_scale = io.FontGlobalScale;
-            float content_scale = windowContentScale(window);
+            float content_scale = ImGui_ImplRgfw_GetContentScaleForWindow(window);
             io.FontGlobalScale = content_scale;
             ImGui::GetStyle().ScaleAllSizes(content_scale / old_scale);
         }
