@@ -1,12 +1,16 @@
 CXX = g++
 CC = gcc
 
-LIBS :=-lgdi32 -lm -lopengl32 -lwinmm -ggdb 
+LIBS :=-lgdi32 -lm -lopengl32 -lwinmm -ggdb
 EXT = .exe
 STATIC =
 
 WARNINGS = -Wall -Wextra
 OS_DIR = \\
+
+ifeq ($(docking),1)
+	CXXFLAGS += -D RGFW_IMGUI_DOCKING_EXAMPLE
+endif
 
 ifneq (,$(filter $(CXX),wineg++ x86_64-w64-mingw32-g++ i686-w64-mingw32-g++))
 	STATIC = --static
@@ -36,7 +40,7 @@ ifeq ($(detected_OS),Windows)
 endif
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	LIBS := -lm -framework Foundation -framework AppKit -framework OpenGL -framework CoreVideo$(STATIC)
-	EXT = 
+	EXT =
 	OS_DIR = /
 	SRC = main.cpp
 	CXXFLAGS += -std=c++17
@@ -65,14 +69,14 @@ ifneq (,$(filter $(CXX),cl /opt/msvc/bin/x64/cl.exe /opt/msvc/bin/x86/cl.exe))
 	EXT = .exe
 endif
 
-LINK_GL1 = 
+LINK_GL1 =
 LINK_GL3 =
-LINK_GL2 = 
+LINK_GL2 =
 
 ifneq (,$(filter $(CXX),emcc))
 	LINK_GL1 = -s LEGACY_GL_EMULATION -D LEGACY_GL_EMULATION -sGL_UNSAFE_OPTS=0
-	LINK_GL3 = -s FULL_ES3 
-	LINK_GL2 = -s FULL_ES2	
+	LINK_GL3 = -s FULL_ES3
+	LINK_GL2 = -s FULL_ES2
 	EXPORTED_JS = -s EXPORTED_RUNTIME_METHODS="['stringToNewUTF8']"
 	LIBS = -s WASM=1 -s ASYNCIFY -s USE_WEBGL2 -s GL_SUPPORT_EXPLICIT_SWAP_CONTROL=1 $(EXPORTED_JS)
 	EXT = .js
@@ -87,12 +91,12 @@ imgui.o:
 	$(CXX) -c imgui/*.cpp
 
 clean:
-	rm -f *.exe rgfw-imgui *.o 
+	rm -f *.exe rgfw-imgui *.o
 
 debug: main.cpp
 	make imgui.o
 
-	$(CXX) $(SRC) $(CXXFLAGS) -I./imgui *.o $(LINK_GL1) $(LIBS) -I. $(WARNINGS) -D RGFW_DEBUG -o rgfw-imgui$(EXT) 
+	$(CXX) $(SRC) $(CXXFLAGS) -I./imgui *.o $(LINK_GL1) $(LIBS) -I. $(WARNINGS) -o rgfw-imgui$(EXT)
 ifeq (,$(filter $(CXX),emcc))
 	.$(OS_DIR)rgfw-imgui$(EXT)
 endif

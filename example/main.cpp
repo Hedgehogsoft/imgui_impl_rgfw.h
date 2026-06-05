@@ -1,100 +1,138 @@
-#include <cstdio>
+#ifdef _MSC_VER
+    #define TRAP() __debugbreak()
+#elif defined(__GNUC__) || defined(__clang__)
+    #define TRAP() __builtin_trap()
+#else
+    #error "Unknown trap intrinsic for this compiler."
+#endif
+#define ASSERT_ALWAYS(x) do { if (!(x)) { TRAP(); } } while(0)
 
-#define RGFW_DEBUG
+#define RGFW_ASSERT ASSERT_ALWAYS
+#define RGFW_DEBUG /* for debug logs */
 #define RGFW_OPENGL
+
+/*
+    Alternative: imgui_impl_rgfw.h includes RGFW.h internally
+    if you don't need to include RGFW.h explicitly here, you can condense this block into:
+    #define RGFW_IMPLEMENTATION
+    #define RGFW_IMGUI_IMPLEMENTATION
+    #include "../imgui_impl_rgfw.h"
+*/
 #define RGFW_IMPLEMENTATION
+#include "RGFW.h"
+
+#define IM_ASSERT ASSERT_ALWAYS
+#include "imgui.h"
+#include "imgui_impl_opengl3.h"
 #define RGFW_IMGUI_IMPLEMENTATION
 #include "../imgui_impl_rgfw.h"
 
-/* I'm using opengl 2 here because it requires less setup and I'm lazy */
-#include "imgui_impl_opengl2.h"
-
 #ifdef __APPLE__
-#include <OpenGL/gl.h>
+    #include <OpenGL/gl.h>
 #else
-#include <GL/gl.h>
+    #include <GL/gl.h>
 #endif
 
-/* handle these functions across all apis */
-void imgui_newFrame(void);
-void imgui_render(void);
-void imgui_shutdown(void);
-
 int main() {
-    RGFW_window* win = RGFW_createWindow("imgui", 0, 0, 700, 600, RGFW_windowCenter | RGFW_windowOpenGL);
+    RGFW_glHints* hints = RGFW_getGlobalHints_OpenGL();
+    hints->major = 3;
+    hints->minor = 3;
+
+    RGFW_windowFlags window_flags = RGFW_windowCenter | RGFW_windowScaleToMonitor | RGFW_windowOpenGL;
+    RGFW_window* window = RGFW_createWindow("rgfw-imgui", 0, 0, 800, 600, window_flags);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.DeltaTime = 1.0f / 60.0f;
-    // Build atlas
-    unsigned char* tex_pixels = nullptr;
-    int tex_w, tex_h;
-    io.Fonts->GetTexDataAsRGBA32(&tex_pixels, &tex_w, &tex_h);
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+#ifdef RGFW_IMGUI_DOCKING_EXAMPLE
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;   /* (Unsupported) Enable Multi-Viewport / Platform Windows */
+#endif
 
-    ImGui_ImplRgfw_InitForOpenGL(win, true);
-    ImGui_ImplOpenGL2_Init();
+    ImGui::StyleColorsDark();
 
+    ImGui_ImplRgfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init();
+
+    bool show_demo_window = true;
+    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
- 
-    RGFW_monitor monitor = RGFW_window_getMonitor(win);
-    io.DisplayFramebufferScale = ImVec2(monitor.scaleX, monitor.scaleY);
- 
-    while (RGFW_window_shouldClose(win) == RGFW_FALSE) {
+
+    while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         RGFW_pollEvents();
-        io.DisplaySize = ImVec2(win->w, win->h);
 
-        imgui_newFrame();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplRgfw_NewFrame();
+        ImGui::NewFrame();
 
-        static float f = 0.0f;
-        static int counter = 0;
-        
-        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+        /* Adjust ImGui UI for HiDPI screens */
+        {
+            float old_scale = io.FontGlobalScale;
+            float content_scale = ImGui_ImplRgfw_GetContentScaleForWindow(window);
+            io.FontGlobalScale = content_scale;
+            ImGui::GetStyle().ScaleAllSizes(content_scale / old_scale);
+        }
 
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+        if (show_demo_window) {
+            ImGui::ShowDemoWindow(&show_demo_window);
+        }
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+        {
+            static float f = 0.0f;
+            static int counter = 0;
 
-            char buffer[200] = {0};
-            ImGui::InputText("label", buffer, 200);
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::Begin("Hello, world!");
+                ImGui::Text("This is some useful text.");
+                ImGui::Checkbox("Demo Window", &show_demo_window);
+                ImGui::Checkbox("Another Window", &show_another_window);
 
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-        ImGui::End();
+                ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+                ImGui::ColorEdit3("clear color", (float*)&clear_color);
 
-        glViewport(0, 0, win->w * monitor.pixelRatio, win->h * monitor.pixelRatio);
+                if (ImGui::Button("Button")) {
+                    counter++;
+                }
+                ImGui::SameLine();
+                ImGui::Text("counter = %d", counter);
+
+                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::End();
+        }
+
+        if (show_another_window) {
+            ImGui::Begin("Another Window", &show_another_window);
+                ImGui::Text("Hello from another window!");
+                if (ImGui::Button("Close Me")) {
+                    show_another_window = false;
+                }
+            ImGui::End();
+        }
+
+        ImGui::Render();
+        i32 pixel_width, pixel_height;
+        RGFW_window_getSizeInPixels(window, &pixel_width, &pixel_height);
+        glViewport(0, 0, pixel_width, pixel_height);
         glClear(GL_COLOR_BUFFER_BIT);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        imgui_render();
-        RGFW_window_swapBuffers_OpenGL(win);
+#ifdef RGFW_IMGUI_DOCKING_EXAMPLE
+        /* (Unsupported) Update and render additional Platform Windows */
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            RGFW_window_makeCurrentWindow_OpenGL(window);
+        }
+#endif
+
+        RGFW_window_swapBuffers_OpenGL(window);
     }
 
-    imgui_shutdown();
-    RGFW_window_close(win);
-    return 0;
-}
-
-void imgui_newFrame() {
-    ImGui::NewFrame();
-    ImGui_ImplRgfw_NewFrame();
-    ImGui_ImplOpenGL2_NewFrame();
-}
-
-void imgui_render(void) {
-    ImGui::Render();
-
-    ImDrawData* draw_data = ImGui::GetDrawData();
-
-    ImGui_ImplOpenGL2_RenderDrawData(draw_data);
-}
-
-void imgui_shutdown(void) {
-    ImGui_ImplOpenGL2_Shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplRgfw_Shutdown();
     ImGui::DestroyContext();
+    RGFW_window_close(window);
+    return 0;
 }
