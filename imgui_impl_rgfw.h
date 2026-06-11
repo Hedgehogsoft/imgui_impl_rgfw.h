@@ -111,14 +111,19 @@ static ImGui_ImplRgfw_Data* ImGui_ImplRgfw_GetBackendData() {
 /* Functions */
 static const char* ImGui_ImplRgfw_GetClipboardText(ImGuiContext* ctx) {
     IM_UNUSED(ctx);
-    size_t size;
-    return RGFW_readClipboard(&size);
+	const RGFW_dataTransfer* clipboard = RGFW_readClipboard();
+	if (clipboard == NULL || clipboard->type != RGFW_dataText) return NULL;
+
+	return clipboard->data;
 }
 
 static void ImGui_ImplRgfw_SetClipboardText(ImGuiContext* ctx, const char* text) {
     IM_UNUSED(ctx);
-    IM_UNUSED(text);
-    RGFW_writeClipboard(text, static_cast<u32>(strlen(text)));
+	RGFW_dataTransfer data;
+	data.data = text;
+	data.length = (size_t)strlen(text);
+	data.type = RGFW_dataText;
+	RGFW_writeClipboard(&data);
 }
 
 static ImGuiKey ImGui_ImplRgfw_KeyToImGuiKey(int key) {
