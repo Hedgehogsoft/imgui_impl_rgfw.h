@@ -94,6 +94,8 @@ struct ImGui_ImplRgfw_Data {
     RgfwClientApi           ClientApi;
     double                  Time;
     RGFW_window*            MouseWindow;
+    RGFW_mouse*             MouseCursors[ImGuiMouseCursor_COUNT];
+    RGFW_mouse*             LastMouseCursor;
     ImVec2                  LastValidMousePos;
     bool                    InstalledCallbacks;
     bool                    CallbacksChainForAllWindows;
@@ -111,7 +113,7 @@ static ImGui_ImplRgfw_Data* ImGui_ImplRgfw_GetBackendData() {
 /* Functions */
 static const char* ImGui_ImplRgfw_GetClipboardText(ImGuiContext* ctx) {
     IM_UNUSED(ctx);
-	const RGFW_dataTransfer* clipboard = RGFW_readClipboard();
+	const RGFW_dataTransfer* clipboard = RGFW_readClipboardString();
 	if (clipboard == NULL || clipboard->type != RGFW_dataText) return NULL;
 
 	return clipboard->data;
@@ -395,6 +397,17 @@ static bool ImGui_ImplRgfw_Init(RGFW_window* window, bool install_callbacks, Rgf
     platform_io.PlatformOpenInShellFn = [](ImGuiContext*, const char* url) { ImGui_ImplRgfw_EmscriptenOpenURL(url); return true; };
 #endif
 
+    /* Load mouse cursors */
+    bd->MouseCursors[ImGuiMouseCursor_Arrow]      = RGFW_createMouseStandard(RGFW_mouseNormal);
+    bd->MouseCursors[ImGuiMouseCursor_TextInput]  = RGFW_createMouseStandard(RGFW_mouseIbeam);
+    bd->MouseCursors[ImGuiMouseCursor_ResizeAll]  = RGFW_createMouseStandard(RGFW_mouseResizeAll);
+    bd->MouseCursors[ImGuiMouseCursor_ResizeNS]   = RGFW_createMouseStandard(RGFW_mouseResizeNS);
+    bd->MouseCursors[ImGuiMouseCursor_ResizeEW]   = RGFW_createMouseStandard(RGFW_mouseResizeEW);
+    bd->MouseCursors[ImGuiMouseCursor_ResizeNESW] = RGFW_createMouseStandard(RGFW_mouseResizeNESW);
+    bd->MouseCursors[ImGuiMouseCursor_ResizeNWSE] = RGFW_createMouseStandard(RGFW_mouseResizeNWSE);
+    bd->MouseCursors[ImGuiMouseCursor_Hand]       = RGFW_createMouseStandard(RGFW_mousePointingHand);
+    bd->MouseCursors[ImGuiMouseCursor_NotAllowed] = RGFW_createMouseStandard(RGFW_mouseNotAllowed);
+
     /* Chain RGFW callbacks: our callbacks will call the user's previously installed callbacks, if any. */
     if (install_callbacks) {
         ImGui_ImplRgfw_InstallCallbacks(window);
@@ -434,6 +447,10 @@ void ImGui_ImplRgfw_Shutdown() {
     if (bd->InstalledCallbacks) {
         ImGui_ImplRgfw_RestoreCallbacks(bd->Window);
     }
+    for (int n = 0; n < ImGuiMouseCursor_COUNT; n++) {
+        if (bd->MouseCursors[n] != nullptr)
+            RGFW_freeMouse(bd->MouseCursors[n]);
+    }
 
     io.BackendPlatformName = nullptr;
     io.BackendPlatformUserData = nullptr;
@@ -472,7 +489,8 @@ static void ImGui_ImplRgfw_UpdateMouseCursor()
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui_ImplRgfw_Data* bd = ImGui_ImplRgfw_GetBackendData();
-    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || (bd->Window->internal.flags & (1L<<2))) {
+    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || RGFW_window_isMouseHidden(bd->Window)) {
+        bd->LastMouseCursor = nullptr;
         return;
     }
 
@@ -481,28 +499,17 @@ static void ImGui_ImplRgfw_UpdateMouseCursor()
     {
         RGFW_window* window = bd->Window;
         if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor) {
-            // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
-            RGFW_window_showMouse(window, 0);
+            if (bd->LastMouseCursor != nullptr) {
+                RGFW_window_showMouse(window, 0);
+                bd->LastMouseCursor = nullptr;
+            }
         }
         else {
-            // Show OS mouse cursor
-            // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with RGFW 3.2, but 3.3 works here.
-
-            static const u8 imgui_mouse_cursors[] = {
-                RGFW_mouseNormal,
-                RGFW_mouseIbeam,
-                RGFW_mouseResizeAll,
-                RGFW_mouseResizeNS,
-                RGFW_mouseResizeEW,
-                RGFW_mouseResizeNESW,
-                RGFW_mouseResizeNWSE,
-                RGFW_mousePointingHand,
-                RGFW_mouseNotAllowed,
-            };
-
-            if (imgui_cursor < (ImGuiMouseCursor)sizeof(imgui_mouse_cursors)) {
-                RGFW_window_setMouseStandard(window, imgui_mouse_cursors[imgui_cursor]);
+            RGFW_mouse* expected_cursor = bd->MouseCursors[imgui_cursor] ? bd->MouseCursors[imgui_cursor] : bd->MouseCursors[ImGuiMouseCursor_Arrow];
+            if (bd->LastMouseCursor != expected_cursor) {
+                RGFW_window_setMouse(window, expected_cursor);
                 RGFW_window_showMouse(window, 1);
+                bd->LastMouseCursor = expected_cursor;
             }
         }
     }
